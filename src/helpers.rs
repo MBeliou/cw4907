@@ -5,7 +5,7 @@ use cosmwasm_std::{
     to_binary, Addr, CosmosMsg, CustomQuery, Querier, QuerierWrapper, StdResult, WasmMsg, WasmQuery,
 };
 
-use crate::messages::{CW4709ExecuteMsg, GetCountResponse, CW4709QueryMsg};
+use crate::messages::{CW4709ExecuteMsg, CW4709QueryMsg, GetCountResponse};
 
 /// CwTemplateContract is a wrapper around Addr that provides a lot of helpers
 /// for working with this.

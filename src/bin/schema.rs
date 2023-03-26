@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use cw4907::messages::{CW4709ExecuteMsg, InstantiateMsg, CW4709QueryMsg};
+use cw4907::messages::{CW4709ExecuteMsg, CW4709QueryMsg, InstantiateMsg};
 
 fn main() {
     write_api! {

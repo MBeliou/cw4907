@@ -1,6 +1,6 @@
 use crate::state::UserInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Timestamp, CustomMsg};
+use cosmwasm_std::{Addr, CustomMsg, Timestamp};
 use cw721::Cw721ExecuteMsg;
 
 /*
@@ -17,7 +17,6 @@ pub enum CW4709ExecuteMsg {
         expires: Timestamp,
     },
 }
-
 
 impl CustomMsg for CW4709ExecuteMsg {}
 
@@ -41,9 +40,7 @@ impl Default for CW4709QueryMsg {
 }
  */
 
-
 impl CustomMsg for CW4709QueryMsg {}
-
 
 // We define a custom struct for each query response
 #[cw_serde]

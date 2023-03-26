@@ -43,7 +43,9 @@ pub fn instantiate(
          */
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Cw4907Contract::default().instantiate(deps, _env, info, msg).unwrap();
+    Cw4907Contract::default()
+        .instantiate(deps, _env, info, msg)
+        .unwrap();
 
     Ok(Response::new())
 }
@@ -94,7 +96,7 @@ pub mod execute {
                 .approvals
                 .iter()
                 .find(|approval| approval.spender == info.sender);
-            
+
             match approval {
                 Some(_) => (),
                 None => return Err(ContractError::Unauthorized {}),

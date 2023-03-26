@@ -1,4 +1,3 @@
-
 use cosmwasm_std::{Addr, DepsMut};
 
 use crate::state::USERS;
@@ -20,7 +19,6 @@ use crate::state::USERS;
 }
  */
 fn before_token_transfer(deps: DepsMut, from: Addr, to: Addr, token_id: String) {
-
     if from != to {
         USERS.remove(deps.storage, token_id.as_str());
         // TODO: add event
