@@ -1,13 +1,15 @@
+use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+    to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response, StdResult,
+    Timestamp,
 };
 use cw2::set_contract_version;
-use cw721_base::Extension;
+use cw721_base::state::TokenInfo;
+use cw721_base::{ContractError, Extension};
 //use cw_multi_test::Contract;
 
-use crate::error::ContractError;
 use crate::messages::{CW4709ExecuteMsg, CW4709QueryMsg, GetCountResponse, InstantiateMsg};
 
 use self::query::{user_expiration, user_of};
@@ -20,6 +22,76 @@ pub type Cw4907Contract<'a> =
     cw721_base::Cw721Contract<'a, Extension, Empty, CW4709ExecuteMsg, CW4709QueryMsg>;
 pub type ExecuteMsg = cw721_base::ExecuteMsg<Extension, CW4709ExecuteMsg>;
 pub type QueryMsg = cw721_base::QueryMsg<CW4709QueryMsg>;
+
+pub trait Approval {
+    /// Returns if the message sender is the owner or has an approval for a given token. This includes the operators
+
+    fn _is_approved_or_owner(
+        &self,
+        deps: Deps,
+        env: &Env,
+        info: &MessageInfo,
+        token: &TokenInfo<Extension>,
+    ) -> bool;
+}
+
+impl Approval for Cw4907Contract<'_> {
+    fn _is_approved_or_owner(
+        &self,
+        deps: Deps,
+        env: &Env,
+        info: &MessageInfo,
+        token: &TokenInfo<Extension>,
+    ) -> bool {
+        if token.owner == info.sender {
+            return true;
+        }
+
+        if token
+            .approvals
+            .iter()
+            .any(|approval| approval.spender == info.sender && !approval.is_expired(&env.block))
+        {
+            return true;
+        }
+
+        let operator = self
+            .operators
+            .may_load(deps.storage, (&token.owner, &info.sender))
+            .unwrap();
+        match operator {
+            Some(expiration) => {
+                if expiration.is_expired(&env.block) {
+                    false
+                } else {
+                    true
+                }
+            }
+            None => false,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct UpdateUserEvent {
+    pub token_id: String,
+    pub user: Addr,
+    pub expires: Timestamp,
+}
+
+pub trait ToEvent {
+    fn to_event(self) -> Event;
+}
+
+impl ToEvent for UpdateUserEvent {
+    fn to_event(self) -> Event {
+        Event::new("update_user").add_attributes(vec![
+            ("tokenId", self.token_id),
+            ("user", self.user.to_string()),
+            ("expires", self.expires.to_string()),
+        ])
+    }
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -71,7 +143,7 @@ pub fn execute(
     }
 }
 pub mod execute {
-    use cosmwasm_std::{Addr, Timestamp};
+    use cosmwasm_std::{Addr, Event, Timestamp};
     use cw721::Cw721Query;
 
     use crate::state::{UserInfo, USERS};
@@ -86,21 +158,12 @@ pub mod execute {
         user: String,
         expires: Timestamp,
     ) -> Result<Response, ContractError> {
-        // TODO: is sender approved or owner
-        let owner_and_approved =
-            Cw4907Contract::default().owner_of(deps.as_ref(), _env, token_id.clone(), false)?;
+        let token = Cw4907Contract::default()
+            .tokens
+            .load(deps.storage, &token_id)?;
 
-        println!("{:?} - {:?}", info.sender, owner_and_approved);
-        if owner_and_approved.owner != info.sender {
-            let approval = owner_and_approved
-                .approvals
-                .iter()
-                .find(|approval| approval.spender == info.sender);
-
-            match approval {
-                Some(_) => (),
-                None => return Err(ContractError::Unauthorized {}),
-            }
+        if !Cw4907Contract::default()._is_approved_or_owner(deps.as_ref(), &_env, &info, &token) {
+            return Err(ContractError::Unauthorized {});
         }
 
         let addr = deps.api.addr_validate(&user).unwrap();
@@ -115,7 +178,14 @@ pub mod execute {
             Ok(_) => (),
             Err(e) => return Err(ContractError::Std(e)),
         }
-        Ok(Response::new().add_attribute("action", "set_user"))
+
+        let updateUserEvent = UpdateUserEvent {
+            user: addr,
+            expires: expires,
+            token_id: token_id,
+        };
+        let event = updateUserEvent.to_event();
+        Ok(Response::new().add_event(event))
     }
 }
 
