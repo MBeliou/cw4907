@@ -61,13 +61,7 @@ impl Approval for Cw4907Contract<'_> {
             .may_load(deps.storage, (&token.owner, &info.sender))
             .unwrap();
         match operator {
-            Some(expiration) => {
-                if expiration.is_expired(&env.block) {
-                    false
-                } else {
-                    true
-                }
-            }
+            Some(expiration) => !expiration.is_expired(&env.block),
             None => false,
         }
     }
