@@ -6,10 +6,11 @@ use cosmwasm_std::{
     Timestamp,
 };
 use cw2::set_contract_version;
+use cw721::Cw721Execute;
 use cw721_base::state::TokenInfo;
 use cw721_base::{ContractError, Extension};
-//use cw_multi_test::Contract;
 
+use crate::hooks::before_token_transfer;
 use crate::messages::{CW4709ExecuteMsg, CW4709QueryMsg, GetCountResponse, InstantiateMsg};
 
 use self::query::{user_expiration, user_of};
@@ -100,19 +101,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    /*
-    let state = State {
-        count: msg.count,
-        owner: info.sender.clone(),
-    };
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    STATE.save(deps.storage, &state)?;
-
-    Ok(Response::new()
-        .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender)
-        .add_attribute("count", msg.count.to_string()))
-         */
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Cw4907Contract::default()
@@ -137,11 +125,61 @@ pub fn execute(
                 expires,
             } => execute::set_user(deps, info, _env, token_id, user, expires),
         },
+        ExecuteMsg::SendNft {
+            contract,
+            token_id,
+            msg,
+        } => {
+            let valid_contract = deps.api.addr_validate(&contract)?;
+            let beforeTransferHook = before_token_transfer(
+                deps.storage,
+                info.sender.clone(),
+                valid_contract,
+                token_id.clone(),
+            );
+
+            let resp =
+                Cw4907Contract::default().send_nft(deps, _env, info, contract, token_id, msg);
+
+            match resp {
+                Ok(r) => match beforeTransferHook {
+                    Some(t) => {
+                        return Ok(r.add_event(t));
+                    }
+                    None => Ok(r),
+                },
+                Err(e) => return Err(e),
+            }
+        }
+        ExecuteMsg::TransferNft {
+            recipient,
+            token_id,
+        } => {
+            let beforeTransferHook = before_token_transfer(
+                deps.storage,
+                info.sender.clone(),
+                deps.api.addr_validate(&recipient)?,
+                token_id.clone(),
+            );
+            let resp =
+                Cw4907Contract::default().transfer_nft(deps, _env, info, recipient, token_id);
+
+            match resp {
+                Ok(r) => match beforeTransferHook {
+                    Some(t) => {
+                        return Ok(r.add_event(t));
+                    }
+                    None => Ok(r),
+                },
+                Err(e) => return Err(e),
+            }
+        }
         _ => Cw4907Contract::default()
             .execute(deps, _env, info, msg)
             .map_err(Into::into),
     }
 }
+
 pub mod execute {
     use cosmwasm_std::{Addr, Event, Timestamp};
     use cw721::Cw721Query;
@@ -172,19 +210,19 @@ pub mod execute {
             token_id.as_str(),
             &UserInfo {
                 expires: expires,
-                user: addr,
+                user: addr.clone(),
             },
         ) {
             Ok(_) => (),
             Err(e) => return Err(ContractError::Std(e)),
         }
 
-        let updateUserEvent = UpdateUserEvent {
+        let update_user_event = UpdateUserEvent {
             user: addr,
             expires: expires,
             token_id: token_id,
         };
-        let event = updateUserEvent.to_event();
+        let event = update_user_event.to_event();
         Ok(Response::new().add_event(event))
     }
 }
@@ -204,8 +242,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+#[cw_serde]
+pub struct UserExpirationResponse {
+    pub expiration: Timestamp,
+}
+
 pub mod query {
-    use cosmwasm_std::Timestamp;
+    use cosmwasm_std::{StdError, Timestamp};
 
     use crate::{
         messages::GetUserResponse,
@@ -214,12 +257,14 @@ pub mod query {
 
     use super::*;
 
-    pub fn user_expiration(deps: Deps, token_id: String) -> Result<Timestamp, ContractError> {
-        let user = USERS.may_load(deps.storage, token_id.as_str()).unwrap();
+    pub fn user_expiration(deps: Deps, token_id: String) -> StdResult<UserExpirationResponse> {
+        let user = USERS.may_load(deps.storage, token_id.as_str())?;
 
         match user {
-            Some(u) => Ok(u.expires),
-            None => Err(ContractError::NoUser {}),
+            Some(u) => Ok(UserExpirationResponse {
+                expiration: u.expires,
+            }),
+            None => Err(StdError::not_found("Expiration not found")),
         }
     }
 

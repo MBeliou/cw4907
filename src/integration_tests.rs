@@ -18,6 +18,10 @@ mod tests {
     const ADMIN: &str = "ADMIN";
     const NATIVE_DENOM: &str = "denom";
 
+    const MINTER: &str = "minter";
+    const NAME: &str = "NAME";
+    const SYMBOL: &str = "SYMBOLE";
+
     fn mock_app() -> App {
         AppBuilder::new().build(|router, _, storage| {
             router
@@ -39,9 +43,9 @@ mod tests {
         let cw_template_id = app.store_code(contract_template());
 
         let msg = InstantiateMsg {
-            minter: "".into(),
-            name: "".into(),
-            symbol: "".into(),
+            minter: MINTER.into(),
+            name: NAME.into(),
+            symbol: SYMBOL.into(),
         };
         let cw_template_contract_addr = app
             .instantiate_contract(
