@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, DepsMut, Event, Storage, Timestamp};
+use cosmwasm_std::{Addr, Event, Storage, Timestamp};
 
 use crate::{
     contract::{ToEvent, UpdateUserEvent},
@@ -13,11 +13,10 @@ pub fn before_token_transfer(
 ) -> Option<Event> {
     if from != to && USERS.has(storage, token_id.as_str()) {
         USERS.remove(storage, token_id.as_str());
-        // TODO: add event
         let event = UpdateUserEvent {
             expires: Timestamp::from_nanos(0),
             user: Addr::unchecked("0"),
-            token_id: token_id,
+            token_id,
         };
         return Some(event.to_event());
     }

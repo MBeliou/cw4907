@@ -11,7 +11,7 @@ use cw721_base::state::TokenInfo;
 use cw721_base::{ContractError, Extension};
 
 use crate::hooks::before_token_transfer;
-use crate::messages::{CW4709ExecuteMsg, CW4709QueryMsg, GetCountResponse, InstantiateMsg};
+use crate::messages::{CW4709ExecuteMsg, CW4709QueryMsg, InstantiateMsg};
 
 use self::query::{user_expiration, user_of};
 
@@ -131,7 +131,7 @@ pub fn execute(
             msg,
         } => {
             let valid_contract = deps.api.addr_validate(&contract)?;
-            let beforeTransferHook = before_token_transfer(
+            let before_transfer_hook = before_token_transfer(
                 deps.storage,
                 info.sender.clone(),
                 valid_contract,
@@ -142,7 +142,7 @@ pub fn execute(
                 Cw4907Contract::default().send_nft(deps, _env, info, contract, token_id, msg);
 
             match resp {
-                Ok(r) => match beforeTransferHook {
+                Ok(r) => match before_transfer_hook {
                     Some(t) => {
                         return Ok(r.add_event(t));
                     }
@@ -155,7 +155,7 @@ pub fn execute(
             recipient,
             token_id,
         } => {
-            let beforeTransferHook = before_token_transfer(
+            let before_transfer_hook = before_token_transfer(
                 deps.storage,
                 info.sender.clone(),
                 deps.api.addr_validate(&recipient)?,
@@ -165,13 +165,11 @@ pub fn execute(
                 Cw4907Contract::default().transfer_nft(deps, _env, info, recipient, token_id);
 
             match resp {
-                Ok(r) => match beforeTransferHook {
-                    Some(t) => {
-                        return Ok(r.add_event(t));
-                    }
+                Ok(r) => match before_transfer_hook {
+                    Some(t) => Ok(r.add_event(t)),
                     None => Ok(r),
                 },
-                Err(e) => return Err(e),
+                Err(e) => Err(e),
             }
         }
         _ => Cw4907Contract::default()
@@ -181,8 +179,7 @@ pub fn execute(
 }
 
 pub mod execute {
-    use cosmwasm_std::{Addr, Event, Timestamp};
-    use cw721::Cw721Query;
+    use cosmwasm_std::Timestamp;
 
     use crate::state::{UserInfo, USERS};
 
@@ -209,7 +206,7 @@ pub mod execute {
             deps.storage,
             token_id.as_str(),
             &UserInfo {
-                expires: expires,
+                expires,
                 user: addr.clone(),
             },
         ) {
@@ -219,8 +216,8 @@ pub mod execute {
 
         let update_user_event = UpdateUserEvent {
             user: addr,
-            expires: expires,
-            token_id: token_id,
+            expires,
+            token_id,
         };
         let event = update_user_event.to_event();
         Ok(Response::new().add_event(event))
@@ -250,10 +247,7 @@ pub struct UserExpirationResponse {
 pub mod query {
     use cosmwasm_std::{StdError, Timestamp};
 
-    use crate::{
-        messages::GetUserResponse,
-        state::{UserInfo, USERS},
-    };
+    use crate::{messages::GetUserResponse, state::USERS};
 
     use super::*;
 
@@ -270,9 +264,7 @@ pub mod query {
 
     pub fn user_of(deps: Deps, token_id: String) -> StdResult<GetUserResponse> {
         let user_info = USERS.may_load(deps.storage, token_id.as_str()).unwrap();
-        Ok(GetUserResponse {
-            user_info: user_info,
-        })
+        Ok(GetUserResponse { user_info })
     }
 }
 

@@ -1,7 +1,6 @@
 use crate::state::UserInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, CustomMsg, Timestamp};
-use cw721::Cw721ExecuteMsg;
+use cosmwasm_std::{CustomMsg, Timestamp};
 
 /*
 #[cw_serde]
